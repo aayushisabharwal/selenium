@@ -2148,6 +2148,11 @@ class PointerDownAction:
         },
     },
     "userAgentClientHints": {
+        # The generated template cannot express the spec's nullable-required
+        # ``clientHints`` (an explicit null clears the override; the template drops
+        # None), and growing the public facade is pending ADR 17670, so the command
+        # stays reachable only through the internal _bidi layer for now.
+        "exclude_methods": ["set_client_hints_override"],
         "module_docstring": (
             "WebDriver BiDi userAgentClientHints module.\n\n"
             "Provides an API for overriding the User-Agent Client Hints reported\n"

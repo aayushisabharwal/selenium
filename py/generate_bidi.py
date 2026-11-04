@@ -649,7 +649,11 @@ class CddlModule:
         code += _MODULE_HEADER_IMPORTS
 
         # Collect needed imports to avoid duplicates
-        needs_command_builder = bool(self.commands)
+        excluded_methods = set(enhancements.get("exclude_methods", []))
+        extra_methods = enhancements.get("extra_methods", [])
+        needs_command_builder = any(
+            command._camel_to_snake(command.name) not in excluded_methods for command in self.commands
+        ) or any("command_builder(" in method for method in extra_methods)
         needs_dataclass = self.commands or self.types or self.events
         needs_callable = self.events
 
@@ -909,6 +913,7 @@ class CddlModule:
                 code += command.to_python_method(method_enhancements)
                 code += "\n"
         elif not self.events and not enhancements.get("extra_methods", []):
+            logger.warning(f"Module {self.name} has no commands, events or extra methods; emitting an empty class")
             code += "    pass\n"
 
         # Emit extra methods from enhancement manifest
@@ -1058,6 +1063,9 @@ class CddlParser:
         # Extract all definitions
         self._extract_definitions(content)
 
+        # Lift inline command params into named definitions
+        self._hoist_inline_params()
+
         # Extract event names from event union definitions
         self._extract_event_names()
 
@@ -1103,6 +1111,65 @@ class CddlParser:
             definition = match.group(2).strip()
             self.definitions[name] = definition
             logger.debug(f"Extracted definition: {name}")
+
+    def _hoist_inline_params(self) -> None:
+        """Rewrite inline command params into references to named types.
+
+        The core BiDi spec always names a command's params type
+        (``params: session.NewParameters``), and that is the shape the type and
+        command passes expect. Adjacent specs may declare the params inline
+        (``params: { ... }``), as ua-client-hints does; left as is, the command is
+        skipped and its module class is emitted empty. Lifting each block into
+        ``module.<Method>Parameters`` lets both passes treat it like any other
+        command. normalize_bidi_ast.mjs does the same for the shared schema, where the
+        record is named ``<Command>CommandParams``; the facade keeps its ``*Parameters``
+        convention instead.
+        """
+        # Same anchor as the command pass, with an opening brace where it expects a type name
+        inline_params_pattern = re.compile(r"method:\s*['\"]([^'\"]+)['\"],\s*params:\s*\{")
+
+        for def_name in list(self.definitions):
+            position = 0
+            while True:
+                def_content = self.definitions[def_name]
+                match = inline_params_pattern.search(def_content, position)
+                if not match:
+                    break
+
+                method = match.group(1)
+                block_start = match.end() - 1
+                block_end = self._find_closing_brace(def_content, block_start)
+                if block_end is None:
+                    logger.warning(f"Unbalanced inline params for {method}; the command will be skipped")
+                    position = match.end()
+                    continue
+
+                module_name, _, method_name = method.partition(".")
+                params_name = f"{module_name}.{method_name[:1].upper()}{method_name[1:]}Parameters"
+                if params_name in self.definitions:
+                    logger.warning(
+                        f"Cannot hoist inline params for {method}: {params_name} exists; the command will be skipped"
+                    )
+                    position = block_end + 1
+                    continue
+
+                self.definitions[params_name] = def_content[block_start : block_end + 1]
+                self.definitions[def_name] = def_content[:block_start] + params_name + def_content[block_end + 1 :]
+                position = block_start + len(params_name)
+                logger.debug(f"Hoisted inline params for {method} into {params_name}")
+
+    @staticmethod
+    def _find_closing_brace(text: str, open_index: int) -> int | None:
+        """Return the index of the brace closing the one at ``open_index``, or None if unbalanced."""
+        depth = 0
+        for index in range(open_index, len(text)):
+            if text[index] == "{":
+                depth += 1
+            elif text[index] == "}":
+                depth -= 1
+                if depth == 0:
+                    return index
+        return None
 
     def _extract_event_names(self) -> None:
         """Extract event names from event union definitions.

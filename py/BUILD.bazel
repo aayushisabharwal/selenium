@@ -927,6 +927,17 @@ py_library(
     deps = [":remote"],
 )
 
+# Same for the CDDL facade generator; it reads license_header.txt next to its source.
+py_library(
+    name = "bidi_cddl_generator",
+    testonly = True,
+    srcs = ["generate_bidi.py"],
+    data = [":license_header_local"],
+    imports = ["."],
+    visibility = ["//visibility:private"],
+    deps = ["//scripts:generated_note"],
+)
+
 py_test_suite(
     name = "unit",
     size = "small",
@@ -938,6 +949,7 @@ py_test_suite(
     ],
     tags = ["unit"],
     deps = [
+        ":bidi_cddl_generator",
         ":bidi_protocol_generator",
         ":init-tree",
         ":selenium",
