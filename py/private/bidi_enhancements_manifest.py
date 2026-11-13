@@ -2148,8 +2148,7 @@ class PointerDownAction:
         },
     },
     "userAgentClientHints": {
-        # The template drops None, so it cannot send the explicit null that clears
-        # the override, and ADR 17670 has the public modules heading internal.
+        # The template drops None, so it cannot send the null that clears the override.
         "exclude_methods": ["set_client_hints_override"],
         "module_docstring": (
             "WebDriver BiDi userAgentClientHints module.\n\n"

@@ -1113,14 +1113,8 @@ class CddlParser:
             logger.debug(f"Extracted definition: {name}")
 
     def _hoist_inline_params(self) -> None:
-        """Rewrite inline command params into references to named types.
-
-        The type and command passes both expect a named params type
-        (``params: session.NewParameters``). A command that declares its params
-        inline, as ua-client-hints does, is skipped by both and its module class
-        is emitted empty.
-        """
-        # Same anchor as the command pass, with an opening brace where it expects a type name
+        """Rewrite inline command params into named types, which the later passes require."""
+        # Must stay in sync with the command pass anchor
         inline_params_pattern = re.compile(r"method:\s*['\"]([^'\"]+)['\"],\s*params:\s*\{")
 
         for def_name in list(self.definitions):
