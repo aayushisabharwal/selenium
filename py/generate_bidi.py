@@ -1115,15 +1115,10 @@ class CddlParser:
     def _hoist_inline_params(self) -> None:
         """Rewrite inline command params into references to named types.
 
-        The core BiDi spec always names a command's params type
-        (``params: session.NewParameters``), and that is the shape the type and
-        command passes expect. Adjacent specs may declare the params inline
-        (``params: { ... }``), as ua-client-hints does; left as is, the command is
-        skipped and its module class is emitted empty. Lifting each block into
-        ``module.<Method>Parameters`` lets both passes treat it like any other
-        command. normalize_bidi_ast.mjs does the same for the shared schema, where the
-        record is named ``<Command>CommandParams``; the facade keeps its ``*Parameters``
-        convention instead.
+        The type and command passes both expect a named params type
+        (``params: session.NewParameters``). A command that declares its params
+        inline, as ua-client-hints does, is skipped by both and its module class
+        is emitted empty.
         """
         # Same anchor as the command pass, with an opening brace where it expects a type name
         inline_params_pattern = re.compile(r"method:\s*['\"]([^'\"]+)['\"],\s*params:\s*\{")
