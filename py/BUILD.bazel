@@ -128,7 +128,7 @@ SE_VERSION = VERSIONS["python"]
 BROWSER_VERSIONS = [
     "v155",
     "v156",
-    "v154",
+    "v157",
 ]
 
 TEST_DEPS = [
@@ -202,6 +202,12 @@ copy_file(
     name = "find-elements",
     src = "//javascript/atoms/fragments:find-elements-typescript.js",
     out = "selenium/webdriver/remote/findElements.js",
+)
+
+copy_file(
+    name = "accessibility-snapshot",
+    src = "//javascript/atoms/fragments:accessibility-snapshot-wire-typescript.js",
+    out = "selenium/webdriver/remote/accessibilitySnapshot.js",
 )
 
 copy_file(
@@ -333,6 +339,7 @@ py_library(
     name = "remote",
     srcs = glob(["selenium/webdriver/remote/**/*.py"]),
     data = [
+        ":accessibility-snapshot",
         ":find-elements",
         ":get-attribute",
         ":is-displayed",
@@ -976,7 +983,10 @@ BIDI_TESTS = glob([
 ])
 
 # Tests that have bidi and classic implementations.
-BIDI_IMPLEMENTATIONS = []
+BIDI_IMPLEMENTATIONS = [
+    # ADR 18205: the snapshot runs over BiDi when the session has it, and Classic otherwise.
+    "test/selenium/webdriver/common/accessibility_snapshot_tests.py",
+]
 
 # BiDi test files with Grid-specific behavior, run through Grid as well. Empty
 # generates no targets: an empty test_suite would mean every test in the package.
