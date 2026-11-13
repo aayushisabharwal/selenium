@@ -2148,8 +2148,38 @@ class PointerDownAction:
         },
     },
     "userAgentClientHints": {
-        # The template drops None, so it cannot send the null that clears the override.
-        "exclude_methods": ["set_client_hints_override"],
+        # The generated method would reject client_hints=None and drop None from the
+        # payload, but the spec clears an override with an explicit null. Shape the
+        # method by hand, as emulation's set_timezone_override is.
+        "extra_methods": [
+            '''    def set_client_hints_override(
+        self,
+        client_hints: ClientHintsMetadata | dict[str, Any] | None,
+        contexts: list[str] | None = None,
+        user_contexts: list[str] | None = None,
+    ):
+        """Execute userAgentClientHints.setClientHintsOverride.
+
+        Sets or clears the User-Agent Client Hints override for the given browsing
+        or user contexts. Pass ``client_hints=None`` to clear a previous override;
+        the protocol expects an explicit ``null`` for that, so it is sent rather
+        than omitted.
+
+        Args:
+            client_hints: A ClientHintsMetadata instance (or dict), or ``None`` to clear.
+            contexts: List of browsing context IDs to target.
+            user_contexts: List of user context IDs to target.
+        """
+        if hasattr(client_hints, "to_bidi_dict"):
+            client_hints = client_hints.to_bidi_dict()
+        params: dict[str, Any] = {"clientHints": client_hints}
+        if contexts is not None:
+            params["contexts"] = contexts
+        if user_contexts is not None:
+            params["userContexts"] = user_contexts
+        cmd = command_builder("userAgentClientHints.setClientHintsOverride", params)
+        return self._conn.execute(cmd)''',
+        ],
         "module_docstring": (
             "WebDriver BiDi userAgentClientHints module.\n\n"
             "Provides an API for overriding the User-Agent Client Hints reported\n"
@@ -2270,6 +2300,31 @@ DATACLASS_METHOD_TEMPLATES: dict[str, dict[str, str]] = {
         "add_event_handler": "_add_event_handler_impl",
         "remove_event_handler": "_remove_event_handler_impl",
     },
+    "BrandVersion": {
+        "to_bidi_dict": """\
+fields = {"brand": self.brand, "version": self.version}
+return {key: value for key, value in fields.items() if value is not None}""",
+    },
+    "ClientHintsMetadata": {
+        "to_bidi_dict": """\
+brands = [brand.to_bidi_dict() if hasattr(brand, "to_bidi_dict") else brand for brand in self.brands]
+full_version_list = [
+    brand.to_bidi_dict() if hasattr(brand, "to_bidi_dict") else brand for brand in self.full_version_list
+]
+fields = {
+    "brands": brands,
+    "fullVersionList": full_version_list,
+    "platform": self.platform,
+    "platformVersion": self.platform_version,
+    "architecture": self.architecture,
+    "model": self.model,
+    "mobile": self.mobile,
+    "bitness": self.bitness,
+    "wow64": self.wow64,
+    "formFactors": self.form_factors,
+}
+return {key: value for key, value in fields.items() if value is not None and value != []}""",
+    },
 }
 
 DATACLASS_METHOD_DOCSTRINGS: dict[str, dict[str, str]] = {
@@ -2285,6 +2340,12 @@ DATACLASS_METHOD_DOCSTRINGS: dict[str, dict[str, str]] = {
     "BrowsingContext": {
         "add_event_handler": "Add an event handler for browsing context events.",
         "remove_event_handler": "Remove an event handler by callback ID.",
+    },
+    "BrandVersion": {
+        "to_bidi_dict": "Serialize to the wire form, omitting unset fields.",
+    },
+    "ClientHintsMetadata": {
+        "to_bidi_dict": "Serialize to the camelCase wire form, omitting unset fields and empty lists.",
     },
 }
 

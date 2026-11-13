@@ -490,7 +490,7 @@ class CddlTypeDefinition:
                     code += f"    def {method_name}(self):\n"
                     if docstring:
                         code += f'        """{docstring}"""\n'
-                    code += f"        {method_impl}\n"
+                    code += indent(method_impl, 8) + "\n"
                     code += "\n"
 
         return code

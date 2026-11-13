@@ -17,18 +17,20 @@
 
 """Unit tests for the CDDL facade generator (py/generate_bidi.py).
 
-The generator finds commands with a pattern that expects a named params type
-(``params: session.NewParameters``), which is how the core BiDi spec is written.
-Adjacent specs may declare the params inline (``params: { ... }``), as ua-client-hints
-does. Before the inline block was hoisted into a named type, such a command was
-silently dropped and its module class was emitted empty. These tests pin the hoisting
-and guard the named-params path it must leave untouched.
+Two failure modes are pinned here. A command whose CDDL declares its params inline
+(``params: { ... }``) used to match nothing and was dropped without a diagnostic,
+emitting an empty module class; it is now hoisted into a named type first. And a
+dataclass method body spanning more than one line used to have only its first line
+indented, which is a SyntaxError in the shipped module rather than a style nit.
+
+The named-params path these must leave untouched is covered alongside them.
 """
 
+import ast
 import logging
 
 import pytest
-from generate_bidi import CddlModule, CddlParser
+from generate_bidi import CddlModule, CddlParser, CddlTypeDefinition
 
 NAMED_PARAMS = """\
 example.DoThingCommand = (
@@ -134,3 +136,20 @@ def test_module_without_commands_or_events_warns_instead_of_failing_silently(cap
 
     assert "    pass\n" in code
     assert "example" in caplog.text
+
+
+MULTILINE_DATACLASS_METHOD = """\
+fields = {"brand": self.brand}
+return {key: value for key, value in fields.items() if value is not None}"""
+
+
+def test_a_multiline_dataclass_method_body_is_indented_into_the_method():
+    """A body emitted at column 0 is a SyntaxError in the shipped module, not a style nit."""
+    definition = CddlTypeDefinition(module="example", name="BrandVersion", fields={"brand": "text"})
+
+    code = definition.to_python_dataclass(
+        {"dataclass_methods": {"BrandVersion": {"to_bidi_dict": MULTILINE_DATACLASS_METHOD}}}
+    )
+
+    ast.parse(code)
+    assert "\n        return {key: value" in code
